@@ -8,6 +8,21 @@ st.set_page_config(
         page_title="PDF card proxy generator",
 )
 
+st.markdown(
+    """
+    <style>
+    img {
+        cursor: pointer;
+        transition: all .2s ease-in-out;
+    }
+    img:hover {
+        transform: scale(1.1);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 "# PDF card proxy generator"
 
 """This app can generate printout-ready PDF with 3x3 grid of standard size game cards (MTG, FFG cards etc.) for the purpose of proxying.

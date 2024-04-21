@@ -6,8 +6,14 @@ from io import BytesIO
 from PIL import Image
 
 
-st.write('TODO')
+"# NetrunnerDB module"
+"""This module seeks to replicate https://proxynexus.net/ functionality, except it doesn't store image data in a local DB. Instead, it pulls card images from netrunnerdb.com API."""
+st.divider()
+"""NRDB images are low quality JPEGs. The image quality can be significantly improved by applying the ML upscaling algorithm (edsr-base model, 3x scaling). *This will increase PDF generation time significantly.*"""
+
+
 deck_id = st.text_input(label='NetrunnerDB decklist id', placeholder='81524', value=None)
+st.caption('Only Published decklist are supported currently. eg. https://netrunnerdb.com/en/decklist/xxxxx/deck-name https://netrunnerdb.com/en/deck/view/xxxxxxx ')
 perform_upscale = st.checkbox('Perform ML upscale (slow, higher quality)')
 
 
