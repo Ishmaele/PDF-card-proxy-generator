@@ -4,122 +4,175 @@ from nrdb_parser import nrdbAPI
 from img_transform import resize_images, create_3x3_sheets, imgUpscaler
 from io import BytesIO
 from PIL import Image
+from collections import OrderedDict
 
 import requests # dev
 
+st.set_page_config(
+    page_title="NRDB module",
+    page_icon=":world_map:️",
+    layout="wide",
+)
+
+st.markdown(
+    """
+    <style>
+    img {
+        cursor: pointer;
+        transition: all .2s ease-in-out;
+    }
+    img:hover {
+        transform: scale(1.1);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 "# NetrunnerDB module"
 """This module seeks to replicate https://proxynexus.net/ functionality, except it doesn't store image data in a local DB. Instead, it pulls card images from netrunnerdb.com API."""
 st.divider()
 """NRDB images are low quality JPEGs. The image quality can be significantly improved by applying the ML upscaling algorithm (edsr-base model, 3x scaling). *This will increase PDF generation time significantly.*"""
 
-tab1, tab2, tab3 = st.tabs(["Decklist", "Card list", "Set"])
+left, right = st.columns([0.65, 0.35])
 
-with tab1:
-    deck_id = st.text_input(label='Enter a decklist URL from NetrunnerDB', placeholder='81524', value=None)
-    st.caption('Only Published decklist are supported currently. eg. https://netrunnerdb.com/en/decklist/xxxxx/deck-name https://netrunnerdb.com/en/deck/view/xxxxxxx ')
-    perform_upscale = st.checkbox('Perform ML upscale (slow, higher quality)')
+with left:
+    # 3-column grid for printing card images
+    grid = st.columns(3, gap='small')
+
+with right:
+    # main module UI
+    tab1, tab2, tab3 = st.tabs(["Decklist", "Card list", "Set"])
 
 
-    if deck_id is not None:
-        if st.button(label='Start'):
-            nrdb_api = nrdbAPI(deck_id)
-            with st.status("Polling NRDB API..."):
-                #get cards list from nrdb
-                deck_data = nrdb_api.get_decklist()
-                st.write(deck_data)
-                #get images from nrdb
-                nrdb_api.get_images(deck_data, False)
-                
-            if perform_upscale:
-                upscaler = imgUpscaler('edsr-base', 3)
-                temp = []
-                bar = st.progress(0, text='Upscaling images...')
-                i = 1
-                # with st.status("Upscaling"):
-                for bytes_file in nrdb_api.nrdb_proxy_list:
-                    image = Image.open(bytes_file)
-                    image_bytes = upscaler.process(image)
-                    temp.append(BytesIO(image_bytes))
-                    bar.progress(int(100 * i / len(nrdb_api.nrdb_proxy_list)), text='Upscaling images...')
-                    i+=1
-                nrdb_api.nrdb_proxy_list = temp
+    with tab1:
+        # decklist id mode
+        deck_id = st.text_input(label='Enter a decklist URL from NetrunnerDB', placeholder='81524', value=None)
+        st.caption('Only Published decklist are supported currently. eg. https://netrunnerdb.com/en/decklist/xxxxx/deck-name https://netrunnerdb.com/en/deck/view/xxxxxxx ')
+        perform_upscale = st.checkbox('Perform ML upscale (slow, higher quality)')
 
-            nrdb_api.resized_proxy_list = resize_images(nrdb_api.nrdb_proxy_list)
 
-            with st.status("Generating PDF..."):
-                #make 3x3 image grids
-                sheets = create_3x3_sheets(nrdb_api.resized_proxy_list, nrdb_api.MODE)
-                st.write('Total sheets: ', len(sheets))
+        if deck_id is not None:
+            if st.button(label='Start'):
+                nrdb_api = nrdbAPI(deck_id)
+                with st.status("Polling NRDB API..."):
+                    #get cards list from nrdb
+                    deck_data = nrdb_api.get_decklist()
+                    st.write(deck_data)
+                    #get images from nrdb
+                    nrdb_api.get_images(deck_data, False)
+                    
+                if perform_upscale:
+                    upscaler = imgUpscaler('edsr-base', 3)
+                    temp = []
+                    bar = st.progress(0, text='Upscaling images...')
+                    i = 1
+                    # with st.status("Upscaling"):
+                    for bytes_file in nrdb_api.nrdb_proxy_list:
+                        image = Image.open(bytes_file)
+                        image_bytes = upscaler.process(image)
+                        temp.append(BytesIO(image_bytes))
+                        bar.progress(int(100 * i / len(nrdb_api.nrdb_proxy_list)), text='Upscaling images...')
+                        i+=1
+                    nrdb_api.nrdb_proxy_list = temp
+
+                nrdb_api.resized_proxy_list = resize_images(nrdb_api.nrdb_proxy_list)
+
+                with st.status("Generating PDF..."):
+                    #make 3x3 image grids
+                    sheets = create_3x3_sheets(nrdb_api.resized_proxy_list, nrdb_api.MODE)
+                    st.write('Total sheets: ', len(sheets))
+
+                    if len(sheets) > 0:
+                        img_byte_arr = BytesIO()
+                        sheets[0].save(img_byte_arr, format='PDF', save_all=True, append_images=sheets[1:])
 
                 if len(sheets) > 0:
-                    img_byte_arr = BytesIO()
-                    sheets[0].save(img_byte_arr, format='PDF', save_all=True, append_images=sheets[1:])
+                    st.download_button(':arrow_down: :red[Download PDF]', img_byte_arr, file_name=f'{deck_id}.pdf')
 
-            if len(sheets) > 0:
-                st.download_button(':arrow_down: :red[Download PDF]', img_byte_arr, file_name=f'{deck_id}.pdf')
+    with tab2:
+        # card list mode
+        card_input = st.text_area(label='Enter card names below', placeholder='Rebirth\nThe Twins\nDescent', value=None, key='input_card_list')
+        if card_input:
+            #card_list = list(set(card_input.splitlines()))
+            card_list = list(OrderedDict.fromkeys(card_input.splitlines()))
+            st.write(f'Total *unique* cards: {len(card_list)}')
 
-with tab2:
-    st.write('DEV')
-    card_input = st.text_area(label='Enter card names below', placeholder='Rebirth\nThe Twins\nDescent', value=None, key='input_card_list')
-    if card_input:
-        card_list = card_input.splitlines()
-        st.write(f'Total cards: {len(card_list)}')
+            cards_url = "https://netrunnerdb.com/api/2.0/public/cards"
+            base_image_url = "https://card-images.netrunnerdb.com/v2/large/"
 
-        cards_url = "https://netrunnerdb.com/api/2.0/public/cards"
-        base_image_url = "https://card-images.netrunnerdb.com/v2/large/"
+            # Initialization
+            if 'result_cards' not in st.session_state:
+                result_cards = {}
 
-        # Initialization
-        if 'result_cards' not in st.session_state:
+            # img storage is persistent between reruns because we don't want to poll API every time
+            if 'imgs' not in st.session_state:
+                st.session_state['imgs'] = {}
+
+
             result_cards = {}
+            # all cards info
+            cards_request = requests.get(cards_url)
+            if cards_request.status_code == 200:
+                cards_data = cards_request.json()
+            else:
+                print("Error: Could not retrieve all cards")
+            
+            # filter cards (search)
+            for card_name in card_list:
+                filtered_for_name = [card for card in cards_data['data'] if card_name.lower() in card['stripped_title'].lower()]
+                result_cards[card_name] = {'cards': filtered_for_name, 'imgs' : {}}
 
-        # img storage is persistent between reruns because we don't want to poll API every time
-        if 'imgs' not in st.session_state:
-            st.session_state['imgs'] = {}
+            # get card imgs
+            if st.button(label='Get Images'):
+                with st.status("Polling NRDB API..."):
+                    for item in result_cards:
+                        for card in result_cards[item]['cards']:
+                            # get img bytes by id
+                            try:
+                                print(base_image_url + card['code'] + ".jpg")
+                                card_picture_response = requests.get(base_image_url + card['code'] + ".jpg")
+                                card_picture_content = BytesIO(card_picture_response.content)
+                                # result_cards[item]['imgs'][card['code']] = card_picture_content
+                                st.session_state['imgs'][card['code']] = card_picture_content
+                            except Exception as ex:
+                                print('Error: failed getting image from nrdb')
+                                print(ex)
 
+                    st.write(result_cards)
+            
+                alt_art_selectors = st.container()
+                alt_art_selectors.write('Alt Arts')
+            # display cards
+            if len(st.session_state['imgs']) > 0:
+                # old display
+                # for item in result_cards:
+                #     if len(result_cards[item]['cards']) > 1:
+                #         pass
+                #         # multiple choice
+                #         # chosen_card_code = st.selectbox(label=item, options=[f'{card['code']}' for card in result_cards[item]['cards']])
+                #         # left.image(st.session_state['imgs'][chosen_card_code], width=225, caption=item)
+                #     if len(result_cards[item]['cards']) == 1:
+                #         id = result_cards[item]['cards'][0]['code']
+                #         left.image(st.session_state['imgs'][id], width=225, caption=item)
 
-        result_cards = {}
-        # all cards info
-        cards_request = requests.get(cards_url)
-        if cards_request.status_code == 200:
-            cards_data = cards_request.json()
-        else:
-            print("Error: Could not retrieve all cards")
-        
-        # filter cards (search)
-        for card_name in card_list:
-            filtered_for_name = [card for card in cards_data['data'] if card_name in card['stripped_title']]
-            result_cards[card_name] = {'cards': filtered_for_name, 'imgs' : {}}
-
-        # get card imgs
-        if st.button(label='Get Images'):
-            with st.status("Polling NRDB API..."):
+                # left column 3x grid
+                col = 0
                 for item in result_cards:
-                    for card in result_cards[item]['cards']:
-                        # get img bytes by id
-                        try:
-                            print(base_image_url + card['code'] + ".jpg")
-                            card_picture_response = requests.get(base_image_url + card['code'] + ".jpg")
-                            card_picture_content = BytesIO(card_picture_response.content)
-                            # result_cards[item]['imgs'][card['code']] = card_picture_content
-                            st.session_state['imgs'][card['code']] = card_picture_content
-                        except Exception as ex:
-                            print('Error: failed getting image from nrdb')
-                            print(ex)
+                    if len(result_cards[item]['cards']) > 1:
+                        with grid[col]:
+                        # multiple choice
+                            chosen_card_code = alt_art_selectors.selectbox(label=item, options=[f'{card['code']}' for card in result_cards[item]['cards']])
+                            st.image(st.session_state['imgs'][chosen_card_code], width=200, caption=item)
 
-                st.write(result_cards)
+                    if len(result_cards[item]['cards']) == 1:
+                        id = result_cards[item]['cards'][0]['code']
+                        with grid[col]:
+                            st.image(st.session_state['imgs'][id], width=200, caption=item)
+
+                    col = (col + 1) % 3
+
+    with tab3:
+        # set mode
+        st.write('TODO 2')
         
-        # display cards
-        if len(st.session_state['imgs']) > 0:
-            for item in result_cards:
-                if len(result_cards[item]['cards']) > 1:
-                    # multiple choice
-                    chosen_card_code = st.selectbox(label=item, options=[f'{card['code']}' for card in result_cards[item]['cards']])
-                    st.image(st.session_state['imgs'][chosen_card_code], width=225, caption=item)
-                if len(result_cards[item]['cards']) == 1:
-                    id = result_cards[item]['cards'][0]['code']
-                    st.image(st.session_state['imgs'][id], width=225, caption=item)
-
-with tab3:
-    st.write('TODO 2')
-    
