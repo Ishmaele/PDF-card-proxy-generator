@@ -6,7 +6,7 @@ from io import BytesIO
 from img_transform import create_3x3_sheets
 
 
-usage = 'ANRProxyGenerator.py -d <deck id>'
+usage = 'nrdb_parser.py -d <deck id>'
 
 
 class nrdbAPI():
@@ -24,7 +24,7 @@ class nrdbAPI():
             return self.deck_data
         else:
             print("Error: Could not retrieve decklist")
-            sys.exit(1)
+            return False
 
     def get_images(self, deck_data, perform_upscale=False) -> list:
         '''Returns resized images from NRDB'''
