@@ -11,46 +11,55 @@ from PIL import Image
 st.divider()
 """NRDB images are low quality JPEGs. The image quality can be significantly improved by applying the ML upscaling algorithm (edsr-base model, 3x scaling). *This will increase PDF generation time significantly.*"""
 
+tab1, tab2, tab3 = st.tabs(["Decklist", "Card list", "Set"])
 
-deck_id = st.text_input(label='NetrunnerDB decklist id', placeholder='81524', value=None)
-st.caption('Only Published decklist are supported currently. eg. https://netrunnerdb.com/en/decklist/xxxxx/deck-name https://netrunnerdb.com/en/deck/view/xxxxxxx ')
-perform_upscale = st.checkbox('Perform ML upscale (slow, higher quality)')
+with tab1:
+    deck_id = st.text_input(label='NetrunnerDB decklist id', placeholder='81524', value=None)
+    st.caption('Only Published decklist are supported currently. eg. https://netrunnerdb.com/en/decklist/xxxxx/deck-name https://netrunnerdb.com/en/deck/view/xxxxxxx ')
+    perform_upscale = st.checkbox('Perform ML upscale (slow, higher quality)')
 
 
-if deck_id is not None:
-    if st.button(label='Start'):
-        nrdb_api = nrdbAPI(deck_id)
-        with st.status("Polling NRDB API..."):
-            #get cards list from nrdb
-            deck_data = nrdb_api.get_decklist()
-            st.write(deck_data)
-            #get images from nrdb
-            nrdb_api.get_images(deck_data, False)
-            
-        if perform_upscale:
-            upscaler = imgUpscaler('edsr-base', 3)
-            temp = []
-            bar = st.progress(0, text='Upscaling images...')
-            i = 1
-            # with st.status("Upscaling"):
-            for bytes_file in nrdb_api.nrdb_proxy_list:
-                image = Image.open(bytes_file)
-                image_bytes = upscaler.process(image)
-                temp.append(BytesIO(image_bytes))
-                bar.progress(int(100 * i / len(nrdb_api.nrdb_proxy_list)), text='Upscaling images...')
-                i+=1
-            nrdb_api.nrdb_proxy_list = temp
+    if deck_id is not None:
+        if st.button(label='Start'):
+            nrdb_api = nrdbAPI(deck_id)
+            with st.status("Polling NRDB API..."):
+                #get cards list from nrdb
+                deck_data = nrdb_api.get_decklist()
+                st.write(deck_data)
+                #get images from nrdb
+                nrdb_api.get_images(deck_data, False)
+                
+            if perform_upscale:
+                upscaler = imgUpscaler('edsr-base', 3)
+                temp = []
+                bar = st.progress(0, text='Upscaling images...')
+                i = 1
+                # with st.status("Upscaling"):
+                for bytes_file in nrdb_api.nrdb_proxy_list:
+                    image = Image.open(bytes_file)
+                    image_bytes = upscaler.process(image)
+                    temp.append(BytesIO(image_bytes))
+                    bar.progress(int(100 * i / len(nrdb_api.nrdb_proxy_list)), text='Upscaling images...')
+                    i+=1
+                nrdb_api.nrdb_proxy_list = temp
 
-        nrdb_api.resized_proxy_list = resize_images(nrdb_api.nrdb_proxy_list)
+            nrdb_api.resized_proxy_list = resize_images(nrdb_api.nrdb_proxy_list)
 
-        with st.status("Generating PDF..."):
-            #make 3x3 image grids
-            sheets = create_3x3_sheets(nrdb_api.resized_proxy_list, nrdb_api.MODE)
-            st.write('Total sheets: ', len(sheets))
+            with st.status("Generating PDF..."):
+                #make 3x3 image grids
+                sheets = create_3x3_sheets(nrdb_api.resized_proxy_list, nrdb_api.MODE)
+                st.write('Total sheets: ', len(sheets))
+
+                if len(sheets) > 0:
+                    img_byte_arr = BytesIO()
+                    sheets[0].save(img_byte_arr, format='PDF', save_all=True, append_images=sheets[1:])
 
             if len(sheets) > 0:
-                img_byte_arr = BytesIO()
-                sheets[0].save(img_byte_arr, format='PDF', save_all=True, append_images=sheets[1:])
+                st.download_button(':arrow_down: :red[Download PDF]', img_byte_arr, file_name=f'{deck_id}.pdf')
 
-        if len(sheets) > 0:
-            st.download_button(':arrow_down: :red[Download PDF]', img_byte_arr, file_name=f'{deck_id}.pdf')
+with tab2:
+    st.write('TODO')
+
+with tab3:
+    st.write('TODO 2')
+    
