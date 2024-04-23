@@ -25,7 +25,7 @@ st.markdown(
 
 "# PDF card proxy generator"
 
-"""This app can generate printout-ready PDF with 3x3 grid of standard size game cards (MTG, FFG cards etc.) for the purpose of proxying.
+"""This app can generate multi-page, ready-to-print PDFs with 3x3 grid of standard size game cards (MTG, FFG cards etc.) for the purpose of proxying.
 Card images need to be uploaded via the upload menu below. The desired amount of copies of each card can be set both globally (use the slider) and individually."""
 st.divider()
 """All uploaded images should use the **same color mode**! Please, make sure that all images are either **RGB** or **CMYK** before uploading, and choose the mode accordingly in the selector below."""
